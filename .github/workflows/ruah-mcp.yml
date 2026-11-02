@@ -1,0 +1,34 @@
+# ruah-mcp on the systems it is published for but no one here has: Linux and Windows run the same
+# npm test as the Mac (the AI tools on the CPU, real model downloads, real MCP protocol).
+name: ruah-mcp
+
+on:
+  push:
+    paths:
+      - 'packages/ruah-mcp/**'
+      - 'src/lib/**'
+      - '.github/workflows/ruah-mcp.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # The shared src/lib modules the unit tests import resolve their packages from the root.
+      - run: npm ci
+      - run: npm ci
+        working-directory: packages/ruah-mcp
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ruah/models
+          key: ruah-models-${{ hashFiles('packages/ruah-mcp/src/models.ts') }}
+      - run: npm test
+        working-directory: packages/ruah-mcp
