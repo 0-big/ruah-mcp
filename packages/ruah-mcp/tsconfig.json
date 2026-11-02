@@ -12,5 +12,5 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*.ts", "../../src/lib/matte.ts", "../../src/lib/encode.ts", "../../src/lib/output.ts", "../../src/imagequant-wasm.d.ts"]
+  "include": ["src/**/*.ts", "../../src/lib/matte.ts", "../../src/lib/encode.ts", "../../src/lib/output.ts"]
 }

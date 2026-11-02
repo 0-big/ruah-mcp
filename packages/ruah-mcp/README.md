@@ -68,5 +68,6 @@ The cache lives in `~/.cache/ruah/models` (or `$XDG_CACHE_HOME/ruah/models`). Se
 
 ruah-mcp is MIT licensed (see [LICENSE](LICENSE)). The models it downloads keep their own licenses:
 [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) (MIT) and [Swin2SR](https://github.com/mv-lab/swin2sr) (Apache-2.0).
-Lossy PNG compression uses [libimagequant](https://github.com/ImageOptim/libimagequant) through the
-[imagequant](https://www.npmjs.com/package/imagequant) package, which is GPL-3.0 licensed and installed by npm as a separate dependency.
+Lossy PNG compression uses [libimagequant](https://github.com/ImageOptim/libimagequant) 2.4.1, its last
+BSD-licensed release, compiled to WebAssembly and bundled in `dist/index.js`. Its notice is
+`dist/LICENSE-libimagequant.txt`.

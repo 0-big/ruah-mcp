@@ -14,6 +14,8 @@ import { encode, initEncoders, type EncodeOpts, type Pixels } from '../../../src
 import { initResizer, resize, type ResizeOpts } from '../../../src/lib/resize.ts';
 import { MODEL as UPSCALE_MODEL, upscale, type Scale, type Upscaled } from '../../../src/lib/upscale.ts';
 import { CACHE_DIR, ensureModel, MODELS, type ModelSpec, type Progress } from './models.ts';
+// Node always has wasm SIMD, so only the SIMD build; esbuild inlines its bytes (build.mjs).
+import quantiserWasm from '../../../src/lib/liq/liq-simd.wasm';
 
 env.localModelPath = CACHE_DIR;
 env.allowLocalModels = true;
@@ -229,7 +231,7 @@ function initCodecs(): Promise<void> {
       webp: await compile('@jsquash/webp/codec/enc/webp_enc_simd.wasm'),
       avif: await compile('@jsquash/avif/codec/enc/avif_enc.wasm'),
       oxipng: await compile('@jsquash/oxipng/codec/pkg/squoosh_oxipng_bg.wasm'),
-      imagequant: await compile('imagequant/imagequant_bg.wasm'),
+      quantiser: await WebAssembly.compile(quantiserWasm),
     });
     await initResizer(await compile('@jsquash/resize/lib/resize/pkg/squoosh_resize_bg.wasm'));
   })();

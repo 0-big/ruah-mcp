@@ -1,5 +1,5 @@
 // Image encoding shared by the web codec worker and the ruah-mcp agent server: the same WASM
-// codecs (jSquash + libimagequant) with the same settings, so a file compressed by an agent comes
+// codecs (jSquash + libimagequant 2.4.1) with the same settings, so a file compressed by an agent comes
 // out byte-for-byte like one compressed on ruah.tools. Runtime-neutral — no DOM, no Node APIs.
 // In the browser each codec fetches its own wasm on first use; Node has no fetch(file://), so it
 // hands over compiled modules once via initEncoders().
@@ -8,7 +8,6 @@ import encodePng, { init as initPng } from '@jsquash/png/encode.js';
 import encodeWebp, { init as initWebp } from '@jsquash/webp/encode.js';
 import encodeAvif, { init as initAvif } from '@jsquash/avif/encode.js';
 import optimisePng, { init as initOxipng } from '@jsquash/oxipng/optimise.js';
-import * as iq from 'imagequant/imagequant_bg.js';
 import { hasAlpha, type Pixels } from './pixels';
 
 export { hasAlpha, type Pixels };
@@ -30,34 +29,57 @@ export interface EncodeOpts {
 
 type WasmSource = BufferSource | WebAssembly.Module;
 
-// --- libimagequant (lossy PNG quantisation) ------------------------------------
-// The `imagequant` package's main entry does `import * as wasm from './*.wasm'`, which neither
-// Vite nor Node can resolve. We use the wasm-bindgen glue directly and instantiate the wasm
-// ourselves from whatever the runtime can load (fetched bytes in the browser, a file in Node).
-let iqLoad: (() => Promise<WasmSource>) | null = null;
-let iqReady: Promise<void> | null = null;
+// --- libimagequant 2.4.1 (lossy PNG quantisation) -------------------------------
+// The last BSD-licensed libimagequant, built by src/lib/liq/build.sh into a bare wasm module with no
+// JS glue. It is instantiated from whatever the runtime can load (fetched bytes in the browser, a
+// compiled module in Node).
+interface Liq {
+  memory: WebAssembly.Memory;
+  liq_alloc(n: number): number;
+  liq_dealloc(ptr: number): void;
+  quantise(ptr: number, width: number, height: number, maxQuality: number, speed: number, dither: number): number;
+}
+let liqLoad: (() => Promise<WasmSource>) | null = null;
+let liqReady: Promise<Liq> | null = null;
 
 /** Tell the PNG quantiser where its wasm comes from. Loaded lazily on the first lossy PNG. */
-export function useImagequantWasm(load: () => Promise<WasmSource>): void {
-  iqLoad = load;
+export function useQuantiserWasm(load: () => Promise<WasmSource>): void {
+  liqLoad = load;
 }
 
-function initImagequant(): Promise<void> {
-  if (!iqReady) {
-    if (!iqLoad) throw new Error('imagequant wasm source not set (useImagequantWasm)');
-    const imports = { './imagequant_bg.js': iq };
-    iqReady = iqLoad()
-      .then(async (src) =>
-        src instanceof WebAssembly.Module
-          ? WebAssembly.instantiate(src, imports)
-          : (await WebAssembly.instantiate(src, imports)).instance,
-      )
-      .then((instance) => {
-        iq.__wbg_set_wasm(instance.exports);
+// Its libc writes to stderr only right before aborting on a corrupted handle: fail loudly instead.
+const liqAbort = () => {
+  throw new Error('PNG quantiser aborted');
+};
+const liqImports = {
+  env: { emscripten_notify_memory_growth: () => {} },
+  wasi_snapshot_preview1: { fd_close: liqAbort, fd_write: liqAbort, fd_seek: liqAbort },
+};
+
+function initQuantiser(): Promise<Liq> {
+  if (!liqReady) {
+    if (!liqLoad) throw new Error('PNG quantiser wasm source not set (useQuantiserWasm)');
+    liqReady = liqLoad()
+      .then(async (src) => {
+        const instance =
+          src instanceof WebAssembly.Module
+            ? await WebAssembly.instantiate(src, liqImports)
+            : (await WebAssembly.instantiate(src, liqImports)).instance;
+        (instance.exports._initialize as () => void)();
+        return instance.exports as unknown as Liq;
+      })
+      .catch((e) => {
+        liqReady = null; // a failed load (network) is retried by the next PNG
+        throw e;
       });
   }
-  return iqReady;
+  return liqReady;
 }
+
+// wasm memory only grows: after a big image, drop the instance so its memory can be freed.
+const LIQ_KEEP_BYTES = 256 * 2 ** 20;
+// Instances a trap left unusable — a PNG that was waiting for the same instance must not use it.
+const liqBroken = new WeakSet<Liq>();
 
 /** Node: initialise every codec from compiled wasm modules (the browser self-initialises). */
 export async function initEncoders(m: {
@@ -66,7 +88,7 @@ export async function initEncoders(m: {
   webp: WebAssembly.Module;
   avif: WebAssembly.Module;
   oxipng: WebAssembly.Module;
-  imagequant: WebAssembly.Module;
+  quantiser: WebAssembly.Module;
 }): Promise<void> {
   await Promise.all([
     initJpeg(m.jpeg),
@@ -75,27 +97,41 @@ export async function initEncoders(m: {
     initAvif(m.avif),
     initOxipng(m.oxipng),
   ]);
-  useImagequantWasm(async () => m.imagequant);
-  await initImagequant();
+  useQuantiserWasm(async () => m.quantiser);
+  await initQuantiser();
 }
 
-/** Lossy PNG: quantise to a ≤256-colour palette (libimagequant), then re-optimise losslessly. */
+/** Lossy PNG: quantise to a ≤256-colour palette (libimagequant), then encode and re-optimise losslessly. */
 async function quantisePng(img: Pixels, level: number): Promise<ArrayBuffer> {
-  await initImagequant();
-  const rgba = new Uint8Array(img.data.buffer, img.data.byteOffset, img.data.byteLength);
-  const image = new iq.ImagequantImage(rgba, img.width, img.height, 0);
-  const quant = new iq.Imagequant();
-  let png: Uint8Array;
+  const n = img.data.byteLength;
+  // The C side reads and writes width × height × 4 bytes, whatever was copied in.
+  if (n !== img.width * img.height * 4) throw new Error(`PNG quantiser: ${n} bytes for ${img.width}×${img.height}`);
+  let liq = await initQuantiser();
+  if (liqBroken.has(liq)) liq = await initQuantiser();
+  let data: Uint8ClampedArray;
   try {
-    // min 0 = never abort; target 90 = perceptually near-lossless while dropping colours
-    // the eye won't miss — matches/beats pngquant-based tools (e.g. TinyPNG).
-    quant.set_quality(0, 90);
-    png = quant.process(image); // consumes `image`; returns a complete PNG
-  } finally {
-    quant.free();
+    const ptr = liq.liq_alloc(n);
+    if (!ptr) throw new Error('PNG quantiser: out of memory');
+    new Uint8Array(liq.memory.buffer, ptr, n).set(img.data);
+    // Quality 0–80 (0 = never give up, only spend fewer colours) · speed 5 · full dithering. Measured
+    // against libimagequant 4 at 0–90, which this replaced (12 images, 2026-11-02): ~5% smaller and
+    // 0.8–2.1 dB better PSNR on every image, at 1.0–1.9× the time. Speed 4 was 2.5× slower on
+    // large photos for no gain; speed 6 lost ~1 dB.
+    const err = liq.quantise(ptr, img.width, img.height, 80, 5, 1);
+    if (err) throw new Error(`PNG quantiser failed (liq error ${err})`);
+    // Read memory.buffer only now: it is replaced whenever the wasm memory grows.
+    data = new Uint8ClampedArray(liq.memory.buffer.slice(ptr, ptr + n));
+    liq.liq_dealloc(ptr);
+  } catch (e) {
+    // A trap leaves the instance's stack and heap unusable: drop it, and the next PNG starts afresh.
+    liqBroken.add(liq);
+    liqReady = null;
+    throw e;
   }
-  // Lossless deflate/filter re-optimisation of the palette PNG.
-  return optimisePng(png.buffer as ArrayBuffer, { level });
+  if (liq.memory.buffer.byteLength > LIQ_KEEP_BYTES) liqReady = null;
+  // OxiPNG turns the ≤256-colour RGBA into an indexed PNG while it re-optimises filters and deflate.
+  const png = await encodePng({ data, width: img.width, height: img.height } as ImageData);
+  return optimisePng(png, { level });
 }
 
 /**

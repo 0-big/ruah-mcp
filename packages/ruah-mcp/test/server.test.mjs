@@ -94,6 +94,35 @@ test('compress: cut-out → WebP keeps transparency and shrinks', async () => {
   assert.ok(corner[0] < 230, `preview corner is the grey checker square, got ${[...corner]}`);
 });
 
+test('compress: cut-out → PNG is a smaller palette PNG that keeps transparency', async () => {
+  const input = join(dir, 'ball-cutout.png');
+  const r = await call('compress', { input_path: input, format: 'png' });
+  assert.ok(!r.isError, text(r));
+  const out = saved(r);
+  const meta = await sharp(out).metadata();
+  assert.deepEqual([meta.format, meta.isPalette, meta.hasAlpha], ['png', true, true]);
+  assert.ok((await stat(out)).size < (await stat(input)).size / 2);
+  // Same picture: transparent corner, and what shows stays close to the original. Colour is weighed
+  // by alpha — under a fully transparent pixel it is invisible, and the palette doesn't keep it.
+  const [a, b] = await Promise.all([input, out].map((f) => sharp(f).ensureAlpha().raw().toBuffer()));
+  assert.equal(b[3], 0, 'corner stays transparent');
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 4) {
+    for (let c = 0; c < 3; c++) diff += Math.abs((a[i + c] * a[i + 3] - b[i + c] * b[i + 3]) / 255);
+    diff += Math.abs(a[i + 3] - b[i + 3]);
+  }
+  assert.ok(diff / a.length < 2, `mean visible difference ${(diff / a.length).toFixed(2)}`);
+});
+
+test('compress: a long screenshot (20,000 rows) still becomes a palette PNG', async () => {
+  const input = join(dir, 'long.png');
+  await sharp({ create: { width: 64, height: 20000, channels: 3, noise: { type: 'gaussian', mean: 128, sigma: 40 } } }).png().toFile(input);
+  const r = await call('compress', { input_path: input, format: 'png' });
+  assert.ok(!r.isError, text(r));
+  const meta = await sharp(saved(r)).metadata();
+  assert.deepEqual([meta.width, meta.height, meta.isPalette], [64, 20000, true]);
+});
+
 test('compress: an opaque photo reports no transparency', async () => {
   const r = await call('compress', { input_path: join(dir, 'ball.jpg'), format: 'webp' });
   assert.match(text(r), /Transparent background: no/);

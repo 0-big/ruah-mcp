@@ -1,8 +1,13 @@
 {
   "name": "ruah-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Ruah image tools for AI agents (MCP): on-device background removal, compression, resizing, cropping, AI upscaling and metadata removal. Images never leave your computer.",
   "homepage": "https://ruah.tools",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0-big/ruah-mcp.git",
+    "directory": "packages/ruah-mcp"
+  },
   "mcpName": "tools.ruah/ruah-mcp",
   "license": "MIT",
   "type": "module",
@@ -30,7 +35,6 @@
     "@jsquash/resize": "2.1.1",
     "@jsquash/webp": "1.5.0",
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "imagequant": "0.1.2",
     "sharp": "^0.35.5",
     "zod": "^4.6.6"
   },

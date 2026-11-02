@@ -4,12 +4,18 @@
   "title": "Ruah",
   "description": "On-device image tools: background removal, compression, resize, crop, AI upscale, metadata removal.",
   "websiteUrl": "https://ruah.tools",
-  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/0-big/ruah-mcp",
+    "source": "github",
+    "id": "1442705950",
+    "subfolder": "packages/ruah-mcp"
+  },
+  "version": "0.1.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "ruah-mcp",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "transport": { "type": "stdio" }
     }
   ]
