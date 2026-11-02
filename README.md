@@ -27,6 +27,13 @@ Requires Node.js 20 or newer.
 claude mcp add ruah -- npx -y ruah-mcp
 ```
 
+Or as a plugin, which adds a short skill on chaining the tools:
+
+```sh
+claude plugin marketplace add 0-big/ruah-mcp
+claude plugin install ruah@ruah-tools
+```
+
 **Any other MCP client** (Claude Desktop, Cursor, …): add this to its MCP server config.
 
 ```json
@@ -55,6 +62,8 @@ Only the AI model weights, once, from Ruah's model mirror (`models.ruah.tools`).
 
 Compression, resizing, cropping and metadata removal need no download at all.
 
+Installing is separate: `npx` fetches the package and its dependencies from npm, and on Linux x64 the install script of `onnxruntime-node` (the AI runtime) also fetches about 260 MB of CUDA and TensorRT files from NuGet, which Ruah never uses. Set `ONNXRUNTIME_NODE_INSTALL=skip` in the server's environment to leave them out (the Claude Code plugin does).
+
 The cache lives in `~/.cache/ruah/models` (or `$XDG_CACHE_HOME/ruah/models`). Set `RUAH_CACHE_DIR` to put it elsewhere.
 
 ## Platforms
@@ -77,7 +86,8 @@ BSD-licensed release, compiled to WebAssembly and bundled in `dist/index.js`. It
 The source the npm package is built from, mirrored from Ruah's main repository. `packages/ruah-mcp` is the
 server; `src/lib` holds the image modules it shares with [ruah.tools](https://ruah.tools), kept at the
 same paths so the imports read the same here. The root `package.json` only installs what `src/lib`
-imports, for the tests and the type check.
+imports, for the tests and the type check. `packages/ruah-mcp/plugin` is the Claude Code plugin, listed by
+`.claude-plugin/marketplace.json`.
 
 ```sh
 npm ci

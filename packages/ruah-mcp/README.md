@@ -27,6 +27,13 @@ Requires Node.js 20 or newer.
 claude mcp add ruah -- npx -y ruah-mcp
 ```
 
+Or as a plugin, which adds a short skill on chaining the tools:
+
+```sh
+claude plugin marketplace add 0-big/ruah-mcp
+claude plugin install ruah@ruah-tools
+```
+
 **Any other MCP client** (Claude Desktop, Cursor, …): add this to its MCP server config.
 
 ```json
@@ -54,6 +61,8 @@ Only the AI model weights, once, from Ruah's model mirror (`models.ruah.tools`).
 | Swin2SR ×4 | `upscale` 4× | 55 MB | First 4× upscale |
 
 Compression, resizing, cropping and metadata removal need no download at all.
+
+Installing is separate: `npx` fetches the package and its dependencies from npm, and on Linux x64 the install script of `onnxruntime-node` (the AI runtime) also fetches about 260 MB of CUDA and TensorRT files from NuGet, which Ruah never uses. Set `ONNXRUNTIME_NODE_INSTALL=skip` in the server's environment to leave them out (the Claude Code plugin does).
 
 The cache lives in `~/.cache/ruah/models` (or `$XDG_CACHE_HOME/ruah/models`). Set `RUAH_CACHE_DIR` to put it elsewhere.
 

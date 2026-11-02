@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ruah": {
+      "command": "npx",
+      "args": ["-y", "ruah-mcp@0.1.1"],
+      "env": { "ONNXRUNTIME_NODE_INSTALL": "skip" }
+    }
+  }
+}

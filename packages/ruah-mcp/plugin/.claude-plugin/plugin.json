@@ -1,0 +1,15 @@
+{
+  "name": "ruah",
+  "displayName": "Ruah",
+  "version": "0.1.1",
+  "description": "Image tools that run on your computer: background removal, compression and format conversion (WebP, AVIF, JPEG, PNG), resizing, cropping, AI upscaling and metadata removal. Images are never uploaded.",
+  "author": { "name": "Ruah", "url": "https://ruah.tools" },
+  "homepage": "https://ruah.tools/mcp/",
+  "repository": "https://github.com/0-big/ruah-mcp",
+  "license": "MIT",
+  "keywords": ["image", "background-removal", "compression", "webp", "avif", "resize", "upscale", "exif"],
+  "documentationUrl": "https://ruah.tools/mcp/",
+  "supportUrl": "https://github.com/0-big/ruah-mcp/issues",
+  "privacyPolicyUrl": "https://ruah.tools/privacy/",
+  "termsOfServiceUrl": "https://ruah.tools/terms/"
+}

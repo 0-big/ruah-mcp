@@ -1,0 +1,14 @@
+{
+  "name": "ruah-tools",
+  "owner": {
+    "name": "Ruah",
+    "url": "https://ruah.tools"
+  },
+  "description": "Ruah image tools for Claude: the ruah-mcp server and a skill on using it.",
+  "plugins": [
+    {
+      "name": "ruah",
+      "source": "./packages/ruah-mcp/plugin"
+    }
+  ]
+}
